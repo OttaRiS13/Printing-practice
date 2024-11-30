@@ -9,10 +9,11 @@
 <body>
     <div id="app">
         <h1>Практика печати</h1>
-        <div id="text-container"></div>
-        <textarea id="user-input" rows="10" cols="50" autofocus></textarea>
-        <div id="result"></div>
-        <div id="stats"></div>
+        <div id="text-container"></div> <!-- Контейнер для отображения текста -->
+        <textarea id="user-input" rows="1" cols="50" autofocus></textarea> <!-- Поле для ввода текста -->
+        <div id="result"></div> <!-- Контейнер для отображения результата -->
+        <div id="stats"></div> <!-- Контейнер для отображения статистики -->
+        <button id="summary-button">Подвести итоги</button> <!-- Кнопка для подведения итогов -->
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -20,12 +21,14 @@
             const userInput = document.getElementById('user-input');
             const result = document.getElementById('result');
             const stats = document.getElementById('stats');
+            const summaryButton = document.getElementById('summary-button');
             let correctText = '';
             let currentIndex = 0;
             let correctCount = 0;
             let incorrectCount = 0;
-            let startTime = 0;
+            let startTime = null;
 
+            // Функция для получения текста с сервера
             async function getText() {
                 const response = await fetch('/get_text');
                 const data = await response.json();
@@ -35,9 +38,52 @@
                 currentIndex = 0;
                 correctCount = 0;
                 incorrectCount = 0;
-                startTime = performance.now();
+                startTime = null; // Сброс таймера
             }
 
+            // Функция для сохранения результатов в cookies
+            function saveResult(timeTaken, correctCount, incorrectCount) {
+                let results = getCookie('results') || '[]';
+                results = JSON.parse(results);
+                results.push({ timeTaken, correctCount, incorrectCount });
+                setCookie('results', JSON.stringify(results), 7); // Сохраняем на 7 дней
+            }
+
+            // Функция для получения результатов из cookies
+            function getResults() {
+                let results = getCookie('results') || '[]';
+                return JSON.parse(results);
+            }
+
+            // Функция для очистки результатов в cookies
+            function clearResults() {
+                setCookie('results', '[]', 7); // Сохраняем пустой массив на 7 дней
+            }
+
+            // Функция для установки cookies
+            function setCookie(name, value, days) {
+                let expires = "";
+                if (days) {
+                    let date = new Date();
+                    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                    expires = "; expires=" + date.toUTCString();
+                }
+                document.cookie = name + "=" + (value || "") + expires + "; path=/";
+            }
+
+            // Функция для получения cookies
+            function getCookie(name) {
+                let nameEQ = name + "=";
+                let ca = document.cookie.split(';');
+                for (let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+                }
+                return null;
+            }
+
+            // Обработчик события ввода текста
             userInput.addEventListener('input', function(event) {
                 const userText = userInput.value;
                 if (userText.length > currentIndex) {
@@ -46,6 +92,9 @@
                     if (currentChar === correctChar) {
                         correctCount++;
                         currentIndex++;
+                        if (startTime === null) {
+                            startTime = performance.now(); // Запуск таймера при вводе первого символа
+                        }
                     } else {
                         incorrectCount++;
                         userInput.value = userText.slice(0, currentIndex);
@@ -53,20 +102,49 @@
                 }
             });
 
+            // Обработчик события нажатия клавиши Enter
             userInput.addEventListener('keydown', function(event) {
                 if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault();
-                    const endTime = performance.now();
-                    const timeTaken = (endTime - startTime) / 1000;
-                    stats.innerHTML = `
-                        <p>Время: ${timeTaken.toFixed(2)} секунд</p>
-                        <p>Правильных символов: ${correctCount}</p>
-                        <p>Неправильных символов: ${incorrectCount}</p>
-                    `;
+                    if (startTime !== null) {
+                        const endTime = performance.now();
+                        const timeTaken = (endTime - startTime) / 1000;
+                        stats.innerHTML = `
+                            <p>Время: ${timeTaken.toFixed(2)} секунд</p>
+                            <p>Правильных символов: ${correctCount}</p>
+                            <p>Неправильных символов: ${incorrectCount}</p>
+                        `;
+                        // Сохранение результатов в cookies
+                        saveResult(timeTaken, correctCount, incorrectCount);
+                    }
                     getText();
                 }
             });
 
+            // Обработчик события нажатия кнопки "Подвести итоги"
+            summaryButton.addEventListener('click', function() {
+                const results = getResults();
+                let totalTime = 0;
+                let totalCorrect = 0;
+                let totalIncorrect = 0;
+
+                results.forEach(result => {
+                    totalTime += result.timeTaken;
+                    totalCorrect += result.correctCount;
+                    totalIncorrect += result.incorrectCount;
+                });
+
+                stats.innerHTML = `
+                    <p>Общее время: ${totalTime.toFixed(2)} секунд</p>
+                    <p>Общее количество правильных символов: ${totalCorrect}</p>
+                    <p>Общее количество неправильных символов: ${totalIncorrect}</p>
+                `;
+
+                // Очистка результатов в cookies
+                clearResults();
+            });
+
+            // Получение первого текста при загрузке страницы
             getText();
         });
     </script>
