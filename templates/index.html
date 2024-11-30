@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Практика печати</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div id="app">
+        <h1>Практика печати</h1>
+        <div id="text-container"></div>
+        <textarea id="user-input" rows="10" cols="50" autofocus></textarea>
+        <div id="result"></div>
+        <div id="stats"></div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const textContainer = document.getElementById('text-container');
+            const userInput = document.getElementById('user-input');
+            const result = document.getElementById('result');
+            const stats = document.getElementById('stats');
+            let correctText = '';
+            let currentIndex = 0;
+            let correctCount = 0;
+            let incorrectCount = 0;
+            let startTime = 0;
+
+            async function getText() {
+                const response = await fetch('/get_text');
+                const data = await response.json();
+                correctText = data.text;
+                textContainer.textContent = correctText;
+                userInput.value = '';
+                currentIndex = 0;
+                correctCount = 0;
+                incorrectCount = 0;
+                startTime = performance.now();
+            }
+
+            userInput.addEventListener('input', function(event) {
+                const userText = userInput.value;
+                if (userText.length > currentIndex) {
+                    const currentChar = userText.charAt(currentIndex);
+                    const correctChar = correctText.charAt(currentIndex);
+                    if (currentChar === correctChar) {
+                        correctCount++;
+                        currentIndex++;
+                    } else {
+                        incorrectCount++;
+                        userInput.value = userText.slice(0, currentIndex);
+                    }
+                }
+            });
+
+            userInput.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    const endTime = performance.now();
+                    const timeTaken = (endTime - startTime) / 1000;
+                    stats.innerHTML = `
+                        <p>Время: ${timeTaken.toFixed(2)} секунд</p>
+                        <p>Правильных символов: ${correctCount}</p>
+                        <p>Неправильных символов: ${incorrectCount}</p>
+                    `;
+                    getText();
+                }
+            });
+
+            getText();
+        });
+    </script>
+</body>
+</html>
